@@ -34,7 +34,6 @@ data segment
     missle_delay db 10     ;how much to wait until to shoot a new missle
     missle_speed db 1     ;how much to wait until to move the missle
     missles db 0; the missles that have been shot  
-    remove_missles db 0
     
     missles_wsizeof equ 4; in the array the size of the missle data is 8byte = 4 words
     max_missles equ 6;the maximum amount of missles there can be at once
@@ -91,29 +90,20 @@ code segment
     mov missles_speed_MSB, cx
     mov missles_speed_LSB, dx  
     
-game_loop:;-----------while 1 { 
-    cmp remove_missles, 0
-    je dont_ersae_missle    
-    
-    mov cl, remove_missles
-    xor ch, ch
-    
-    erase:
-        pop ax
-        pop ax
-        pop ax
-        pop ax
-        sub missles, 1
-        sub remove_missles, 1
-    loop erase
-    
-    dont_ersae_missle:
-    
+game_loop:;-----------while 1 {  
     cmp missles, 0;if there are misssles
     je nomissles
     ;move them
-    
+    lea ax, missles
+    push ax
+    lea ax, missles_speed_MSB
+    push ax
+    lea ax, missles_speed_LSB
+    push ax
+    lea ax, missles_array
+    push ax
     call move_multi_missles
+    add sp, 8
         
     nomissles:  
     
@@ -133,6 +123,8 @@ game_loop:;-----------while 1 {
     
     cmp ax, 04b00h;left arrow
     jne skip_left_arrow 
+        lea ax, player_x
+        push ax
         push 0    
         call move_player
         add sp, 2;clear the parameter    
@@ -140,6 +132,8 @@ game_loop:;-----------while 1 {
     
     cmp ax, 04d00h;right arrow
     jne skip_right_aarrow
+       lea ax, player_x
+       push ax
        push 1    
        call move_player 
        add sp, 2;clear the parameter
@@ -222,7 +216,15 @@ game_loop:;-----------while 1 {
     call add32_8   
     add sp, 6
     ;--UPDATE NEW DELAY TIME 
-    
+
+    lea ax, score ;we take it as constant 
+    push ax
+    lea ax, enemy_x;we take it as constant 
+    push ax
+    lea ax, enemy_y;we take it as constant 
+    push ax
+    lea ax, enemy_move
+    push ax
     call move_enemy 
     
     ;if enemy_y >= 180 break
@@ -579,125 +581,168 @@ create_enemy proc
     pop bp         
     ret               
 create_enemy endp   
-             
-             
+
+;score      10
+;enemy_x    8
+;enemy_y    6
+;enemy_move 4
 move_enemy proc
+    push bp
+
+    mov bp, sp
+
     push ax  
+    push bx
     
     ;destroy previoys enemy
-    push enemy_x
-    push enemy_y 
-    push erease_entity  
-    call create_enemy   
+    push enemy_x        ;constant
+    push enemy_y        ;constant
+    push erease_entity  ;constant
+    call create_enemy   ;constant
     
-    mov ax, enemy_x 
 
-    add score, 2;in the x direction it always moves 2 pixels    
+    mov bx, [bp+10]
+    mov ax, [bx] ;store score in ax to update it after the movement
+    add ax, 2;in the x direction it always moves 2 pixels    
+    mov [bx], ax
+
+    mov bx, [bp+8] 
+    mov ax, [bx] ;store x in ax to check if we are in bounds after the movement
     
-    cmp enemy_move, 1
+    cmp enemy_move, 1 ;constant
     je move_L  
 ;---right movement      
     add ax, 2
+    mov [bx], ax
     cmp ax, 310  
     jb endmove  
 
-    mov  enemy_move, 1;make next movement left
-    add enemy_y, 1; and go down
-    inc score 
+    mov [bx], 310 
+
+    mov bx, [bp+4]
+    mov  [bx], 1;make next movement left
+
+    mov bx, [bp+6]
+    mov ax, [bx]
+    add ax, 1; and go down
+    mov [bx], ax
     
-    mov ax, 310 
     
+    mov bx, [bp+10]
+    mov ax, [bx] ;store score in ax to update it after the movement
+    inc ax    
+    mov [bx], ax
+
     jmp endmove  
      
     move_L:
     sub ax, 2
+
+    mov [bx], ax
     
     cmp ax, 0 
     ja endmove  
     
-    mov  enemy_move, 0;make next movement right
-    add enemy_y, 1 ;and go down
-    inc score  
     
     xor ax, ax  
+    mov [bx], ax
     
+    mov bx, [bp+6]
+
+    add [bx], 1 ;and go down
+    
+    mov bx, [bp+4]
+    mov  [bx], 0;make next movement right
+    
+    mov bx, [bp+10]
+    mov ax, [bx] ;store score in ax to update it after the movement
+    inc ax    
+    mov [bx], ax  
     endmove: 
     
-    mov enemy_x, ax
     
-    push enemy_x
-    push enemy_y 
-    push enemy_color
-    call create_enemy 
+    push enemy_x       ;constant    
+    push enemy_y       ;constant    
+    push enemy_color   ;constant        
+    call create_enemy  ;constant        
     
     add sp, 12
      
-                   
+    pop bx
     pop ax
+    pop bp
     ret  
 move_enemy endp                     
 
-
+;8: x
 ;6: left right flag
 move_player proc 
     push ax
     push bp  
     
     mov bp, sp
+
+    push bx
     
     cmp [bp+6], 1
     je move_pR
     ;-----------------left movement
-    cmp player_x, 6
+    cmp player_x, 6     ;constant
     jbe outofflimits 
     
     
-    push player_x
-    push player_y 
-    push player_height
-    push player_width
-    push erease_entity  
-    call create_player
+    push player_x       ;constant
+    push player_y       ;constant
+    push player_height  ;constant
+    push player_width   ;constant
+    push erease_entity  ;constant
+    call create_player  ;constant
     add sp, 10
     
-    sub player_x, 1
+    mov bx, [bp+8]
+    mov ax, [bx]
+    sub ax, 1
+    mov [bx], ax
     
-    push player_x
-    push player_y 
-    push player_height
-    push player_width
-    push player_color 
-    call create_player 
+    push player_x       ;constant   
+    push player_y       ;constant   
+    push player_height  ;constant       
+    push player_width   ;constant       
+    push player_color   ;constant       
+    call create_player  ;constant       
     
     add sp, 10
     
     jmp outofflimits
     move_pR:    
     ;----------------right movement
-    cmp player_x, 314
+    cmp player_x, 314 ;constant
     jae outofflimits   
     
-    push player_x
-    push player_y 
-    push player_height
-    push player_width
-    push erease_entity  
-    call create_player
+    push player_x       ;constant   
+    push player_y       ;constant   
+    push player_height  ;constant       
+    push player_width   ;constant       
+    push erease_entity  ;constant           
+    call create_player  ;constant       
     add sp, 10
     
-    inc player_x
+    mov bx, [bp+8]
+    mov ax, [bx]
+    inc ax
+    mov [bx], ax
     
-    push player_x
-    push player_y 
-    push player_height
-    push player_width
-    push player_color  
+    push player_x       ;constant   
+    push player_y       ;constant   
+    push player_height  ;constant       
+    push player_width   ;constant       
+    push player_color   ;constant       
     call create_player 
     
     add sp, 10   
     outofflimits:
     
-    
+    pop bx
     pop bp
     pop ax
     ret
@@ -894,6 +939,10 @@ move_single_missle proc
     ret
 move_single_missle endp   
 
+;10: missles
+;8: missles_speed_MSB
+;6: missles_speed_LSB
+;4: &missles_array
 move_multi_missles proc
     push bp
     mov bp, sp
@@ -917,7 +966,7 @@ move_multi_missles proc
     ;lsb0: +2
     ;x0: +2
     ;y0: 0
-    lea bx, missles_array
+    mov  bx, [bp]
     check_movement:
         mov ax, [bx+si]
         add si, 2
@@ -954,15 +1003,23 @@ move_multi_missles proc
         
         
         add si, 6
-        mov ax, [bx+si];msbi    
-        mov missles_speed_MSB, ax
-        lea ax, missles_speed_MSB 
+        mov ax, [bx+si];msbi   
+
+        push bx
+        mov bx, [bp+4]
+        mov [bx], ax
+        mov ax, bx 
+        pop bx
         push ax
         
         sub si, 2   
-        mov ax, [bx+si];lsbi    
-        mov missles_speed_LSB, ax
-        lea ax, missles_speed_LSB 
+        mov ax, [bx+si];lsbi  
+
+        push bx  
+        mov bx, [bp+2]
+        mov [bx], ax
+        mov ax, bx 
+        pop bx
         push ax
 
         call move_single_missle   
@@ -988,26 +1045,19 @@ move_multi_missles proc
             add si, 2
             mov [bx+si], ax
             sub si, 2
-            mov missles_speed_MSB, ax
-            mov missles_speed_LSB, ax
-                 
-;            add si, 2 
-;            push [bx+si]
-;            sub si, 2
-;            push [bx+si]
-;            push erease_entity
-;            call create_missle
-;            
-;            add sp, 6
-;            xor ax, ax
-;            mov 
-            
-;            add si, 2
-;            mov [bx+si], ax 
-;            mov missles_speed_MSB, 0                     
-;            mov missles_speed_LSB, 0 
-;            sub si, 2   
-            sub missles, 1
+
+            push bx
+
+            mov bx, [bp+4]
+            mov [bx], ax
+            mov bx, [bp+2]
+            mov [bx], ax
+                  
+            mov bx, [bp+6]
+            mov ax, [bx]
+            sub ax, 1
+            mov [bx], ax
+            pop bx
         in_bounds:
         add si, 6 
         
@@ -1067,7 +1117,7 @@ search_win_condition proc
     
     
     mov dx, [bx+si]
-    mov ax, enemy_y
+    mov ax, enemy_y;we take it as constant 
     add si, 2
     
     sub ax, dx
@@ -1076,11 +1126,11 @@ search_win_condition proc
     ja unsatisfied
     
     mov ax, [bx+si]
-    mov dx, enemy_x
+    mov dx, enemy_x;we take it as constant 
     
     sub ax, dx 
     
-    cmp ax, 4
+    cmp ax, 9
     jbe game_over
     
     unsatisfied:
